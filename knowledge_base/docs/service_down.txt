@@ -1,0 +1,10 @@
+RUNBOOK: Internal Service Down or Slow (Jenkins, Jira, Confluence)
+Common Causes:
+1. Scheduled maintenance window
+2. Service pod crashed
+3. High traffic exhausting connections
+Resolution Steps:
+1. Check service health status
+2. Check internal status page for active incidents
+3. If service is down, escalate immediately to L2-Platform
+4. If service is up but user still affected, ask them to clear cache

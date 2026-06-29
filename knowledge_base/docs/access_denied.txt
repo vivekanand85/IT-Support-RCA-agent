@@ -1,0 +1,10 @@
+RUNBOOK: Access Denied to Resource (S3, Jira, internal tools)
+Common Causes:
+1. IAM role not attached to user
+2. Bucket/resource policy restricts access
+3. User in wrong account or environment
+Resolution Steps:
+1. Confirm exact resource name and environment from employee
+2. Check IAM role assignment
+3. Attach correct role, allow 2 minutes for propagation
+4. If SCP or org-level restriction blocks it, escalate to L2-CloudOps

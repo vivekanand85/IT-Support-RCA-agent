@@ -1,0 +1,10 @@
+RUNBOOK: VPN Authentication / Connectivity Failure
+Common Causes:
+1. VPN client outdated - required version 5.0.4 or higher
+2. User credentials expired (90-day rotation policy)
+3. Split-tunnel policy recently changed, requires reconnect
+Resolution Steps:
+1. Check VPN client version, update if below 5.0.4
+2. Verify account status - confirm credentials not expired
+3. Reset VPN profile and reconnect
+4. If still failing after reset, escalate to L2-Network

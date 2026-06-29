@@ -1,0 +1,8 @@
+pydantic
+python-dotenv
+openai
+langgraph==0.4.7
+fastapi
+uvicorn
+streamlit
+requests
