@@ -3,7 +3,8 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 from agent.state import AgentState
 from agent.graph import agent_graph
-
+from fastapi import UploadFile,File
+from tools.log_parser import extract_issue_from_log
 from fastapi.responses import StreamingResponse
 import json
 
@@ -81,3 +82,34 @@ def resolve_issue_stream(request: IssueRequest):
         yield f"data: {json.dumps({'node': 'done'})}\n\n"
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
+@app.post("/resolve-issue-from-log")
+async def resolve_issue_from_log(file: UploadFile = File(...), user_id: str = "employee@hcl.com"):
+    raw_bytes=await file.read()
+    log_text= raw_bytes.decode("utf-8", errors="ignore")
+    issue_text = extract_issue_from_log(log_text)
+    ticket_id = f"TKT-{uuid.uuid4().hex[:6].upper()}"
+    initial_state=AgentState(
+        ticket_id=ticket_id,
+        user_id=user_id,
+        raw_issue_text=issue_text
+    )
+
+    result=agent_graph.invoke(initial_state)
+    get = (lambda f: result[f]) if isinstance(result, dict) else (lambda f: getattr(result, f))
+
+    return {
+        "ticket_id": ticket_id,
+        "extracted_issue_text": issue_text,
+        "issue_type": get("issue_type"),
+        "resolved": get("issue_resolved"),
+        "execution_result": get("execution_result"),
+        "escalation_team": get("escalation_team") or "N/A",
+        "root_cause": get("root_cause"),
+        "resolution_summary": get("resolution_summary"),
+        "prevention_recommendation": get("prevention_recommendation"),
+    }
+
+         
+
