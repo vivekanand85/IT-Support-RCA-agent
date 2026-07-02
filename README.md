@@ -7,17 +7,18 @@ each agent's progress streamed live to the UI as it happens.
 
 Built for the **HCLTech–OpenAI Agentic AI Hackathon** (Track 2 — Internal Operations).
 
-## Status
-
-- [x] Shared agent state (Pydantic model)
-- [x] Agent 1 — Issue Detection (OpenAI `gpt-4o-mini`, structured JSON output)
-- [x] Agent 2 — SOP/Runbook Retrieval (RAG via OpenAI embeddings + cosine similarity)
-- [x] Agent 3 — Execution Agent (simulated remediation, least-privilege auto-resolve)
 - [x] Agent 4 — Ticket Agent (in-memory store, LLM-based team routing)
-- [x] Agent 5 — RCA Agent (root cause, resolution summary, prevention)
++ [x] Agent 4 — Ticket Agent (in-memory store, LLM-based team routing; now
++     triggered on-demand via "Create a case" action, not auto-run in the graph)
+  [x] Agent 5 — RCA Agent (root cause, resolution summary, prevention)
 - [x] LangGraph wiring — full state machine with conditional branching
-- [x] FastAPI backend — `/resolve-issue` (sync) and `/resolve-issue-stream` (SSE)
-- [x] Streamlit UI — live per-agent progress via Server-Sent Events
++ [x] LangGraph wiring — linear state machine (issue_detection → sop_retrieval
++     → execution → rca); ticket creation deferred, called directly from the API
+  [x] FastAPI backend — `/resolve-issue` (sync) and `/resolve-issue-stream` (SSE)
++ [x] FastAPI backend — `/create-ticket/{ticket_id}` for on-demand escalation
+  [x] Streamlit UI — live per-agent progress via Server-Sent Events
++ [x] Streamlit UI — multi-candidate diagnosis display (Agent 1) + AWS-style
++     guidance-first escalation flow with a "Still need help?" action
 
 ## Architecture
 
@@ -26,11 +27,31 @@ flowchart TD
     A[Employee Issue Text] --> B[Agent 1: Issue Detection]
     B --> C[Agent 2: SOP/Runbook Retrieval - RAG]
     C --> D[Agent 3: Execution]
-    D --> E{Issue Resolved?}
-    E -- Yes --> F[Agent 5: RCA Report]
-    E -- No --> G[Agent 4: Ticket Creation]
-    G --> F
+-    D --> E{Issue Resolved?}
+-    E -- Yes --> F[Agent 5: RCA Report]
+-    E -- No --> G[Agent 4: Ticket Creation]
+-    G --> F
++    D --> F[Agent 5: RCA Report / Guidance]
++    F --> H{Issue Resolved?}
++    H -- Yes --> I[Shown as Resolved]
++    H -- No --> J["Still need help?" button]
++    J -->|user clicks| G[Agent 4: Ticket Creation - on demand]
 ```
+
+**Note on this change:** Agent 1 now internally considers 2–3 candidate
+issue types with confidence scores before selecting one — this is a single
+structured LLM call, not parallel agents, and is surfaced in the UI for
+transparency (not a new reasoning capability).
+
+**Note on Agent 4:** ticket creation is no longer an automatic graph node.
+RCA now always runs immediately after execution, regardless of resolution,
+so the user sees root-cause guidance first (mirroring AWS Support's
+triage UX). Ticket creation only happens if the user explicitly clicks
+"Still need help? Create a case," which calls a separate endpoint and runs
+`ticket_node` directly against the finished state. Finished-but-unticketed
+states are held in an in-memory `pending_states` dict (`main.py`), keyed
+by `ticket_id` — a known simplification for the demo; production would use
+Redis with a TTL instead of an unbounded dict.
 
 ## Tech Stack
 
@@ -114,26 +135,26 @@ streamlit run streamlit_app.py
 Open `http://localhost:8501`, describe an IT issue, watch each agent report
 its progress live, then view the final RCA report.
 
-## Design decisions worth noting
-
-- **Least-privilege automation**: only `vpn_auth_failure` and `password_reset`
-  are auto-resolvable. Everything else (`access_denied`, `service_down`,
-  `unknown`) always routes to a human, even though a fix might be technically
-  possible — mirrors how real enterprise automation is scoped.
-- **Storage abstraction**: tickets live in a plain in-memory dict
-  (`storage/tickets_store.py`). Swapping to MongoDB later only touches this
-  one file — nothing else needs to change.
 - **Streaming over blocking**: the UI uses LangGraph's `.stream()` +
   FastAPI's `StreamingResponse` (SSE) so the multi-agent reasoning is visible
   step-by-step, not hidden behind one blocking call.
++ **Deferred, user-triggered escalation**: ticket creation is decoupled from
++  the LangGraph pipeline entirely. The graph always ends at RCA, presenting
++  guidance first; escalation is a separate, explicit user action
++  (`POST /create-ticket/{ticket_id}`) rather than something that happens
++  silently in the background — closer to how a real support tool should
++  respect the user's intent before creating a ticket on their behalf.
 
-## Known limitation / next planned improvement
+## Known limitations
 
-Auto-resolution currently always succeeds on the first attempt — there's no
-check for whether the *same* issue type repeats for the *same* user shortly
-after being "resolved." A real system would treat a repeat as a sign the
-automated fix didn't actually work and escalate to a human instead. Planned
-as the next addition.
+**`pending_states` (main.py)** — in-memory, unbounded, no TTL, lost on
+server restart. Holds finished-but-unticketed states so the "Create a
+case" button can act on them later. Production would use Redis with
+expiry instead.
+**Repeat-issue detection is implemented** (`storage/resolution_history.py`):
+if the same issue type recurs for the same user after an automated fix,
+`execution_node` refuses to retry it and escalates to a human instead of
+repeating the same fix blindly.
 
 ## Author
 
