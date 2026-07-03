@@ -2,6 +2,7 @@ import os, json, re
 from openai import OpenAI
 from dotenv import load_dotenv
 from agent.state import AgentState
+from agent.lang import language_instruction
 
 load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -16,7 +17,7 @@ If the issue was auto-resolved, describe what was actually fixed.
 If it was escalated, say resolution is pending human investigation - do not invent a fix.
 
 Return ONLY valid JSON, no markdown:
-{"root_cause": "...", "resolution_summary": "...", "prevention_recommendation": "..."}"""
+{"root_cause": "...", "resolution_summary": "...", "prevention_recommendation": "..."}""" + language_instruction(state.language)
 
     context = f"""Issue type: {state.issue_type}
 Employee reported: {state.raw_issue_text}

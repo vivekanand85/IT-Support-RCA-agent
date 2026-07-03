@@ -3,6 +3,7 @@ from openai import OpenAI
 from dotenv import load_dotenv
 from agent.state import AgentState
 from storage.tickets_store import save_ticket
+from agent.lang import language_instruction
 
 load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -17,7 +18,7 @@ def ticket_node(state: AgentState) -> AgentState:
 pick exactly one team from {VALID_TEAMS} and write a 2-3 line summary for them.
 
 Return ONLY valid JSON, no markdown:
-{{"team": "...", "summary": "..."}}"""
++{{"team": "...", "summary": "..."}}""" + language_instruction(state.language)
 
     context = f"""Issue type: {state.issue_type}
 Employee message: {state.raw_issue_text}
